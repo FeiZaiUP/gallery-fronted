@@ -126,7 +126,7 @@
 
 
 <script>
-import axios from '../axios.js';
+import axios from '@/axios.js';
 
 export default {
   data() {
@@ -150,7 +150,7 @@ export default {
       expireTime: null,
       creatingShareLink: false,
       generatedShareLink: null, // 保存生成的分享链接
-      baseUrl: 'http://192.168.1.175:8188', // 替换为你的实际前端 URL
+      baseUrl: 'http://192.168.1.175:8188', // 图片分享查看链接接口
       copySuccess: false, // 复制成功状态
     };
   },
@@ -175,7 +175,7 @@ export default {
           }
         });
 
-        this.username = response.username;
+        this.username = response.data.username;
       } catch (error) {
         console.error('Error fetching user profile:', error);
         this.username = '未知用户';
@@ -196,7 +196,7 @@ export default {
           }
         });
 
-        this.images = response;
+        this.images = response.data;
         this.loading = false;
       } catch (error) {
         console.error('Error fetching images:', error);
@@ -320,11 +320,10 @@ export default {
     },
 
     validateISODate(dateString) {
-      const isoRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
-      return isoRegex.test(dateString);
+      const date = new Date(dateString);
+      return date.toISOString() === dateString; // 确保格式和值都有效
     },
 
-    // 创建分享链接
     async createShareLink() {
       if (!this.selectedImages.length) {
         this.errorMessage = "请至少选择一张图片！";
@@ -332,13 +331,8 @@ export default {
         return;
       }
 
-      const payload = {
-        images: this.selectedImages,
-      };
-      // 添加可选字段
-      if (this.sharePassword) {
-        payload.password = this.sharePassword; // 密码
-      }
+      const payload = { images: this.selectedImages };
+      if (this.sharePassword) payload.password = this.sharePassword;
       if (this.expireTime) {
         const isoDate = new Date(this.expireTime).toISOString();
         if (!this.validateISODate(isoDate)) {
@@ -350,77 +344,76 @@ export default {
       }
 
       try {
-        const accessToken = localStorage.getItem('access_token');
-        if (!accessToken) {
-          throw new Error('用户未登录！');
-        }
+        const accessToken = localStorage.getItem("access_token");
+        if (!accessToken) throw new Error("用户未登录！");
 
-        const response = await axios.post('/images/share/', payload, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
+        const response = await axios.post("/images/share/", payload, {
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
 
-        this.generatedShareLink = response; // 保存生成的分享链接
-
-        console.log("Generated Share Link:", this.generatedShareLink);
+        this.generatedShareLink = response.data || response;
+        const link = `${this.baseUrl}/share/${this.generatedShareLink?.share_code}`;
+        console.log("Generated Share Link:", link);
 
         // 自动复制到剪贴板
-        const link = `${this.baseUrl}/share/${this.generatedShareLink.share_code}`;
-        console.log(link);
-        // 自动复制到剪贴板
-        try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
           await navigator.clipboard.writeText(link);
           this.successMessage = "分享链接创建成功并已复制到剪贴板！";
-        } catch (copyError) {
-          console.error("自动复制失败:", copyError);
+        } else {
+          this.fallbackCopyTextToClipboard(link);
           this.successMessage = "分享链接创建成功，请手动复制！";
         }
 
-        this.closeModal('shareModal'); // 关闭创建分享模态框
+        this.closeModal("shareModal");
         setTimeout(this.clearMessage, 3000);
       } catch (error) {
         const responseData = error.response?.data || {};
-        if (responseData.detail) {
-          this.errorMessage = responseData.detail;
-        } else if (responseData.errors) {
-          this.errorMessage = Object.values(responseData.errors).join(' ');
-        } else {
-          this.errorMessage = "创建分享失败，请检查输入内容！";
-        }
+        this.errorMessage = responseData.detail ||
+            Object.values(responseData.errors || {}).join(" ") ||
+            "创建分享失败，请检查输入内容！";
         setTimeout(this.clearMessage, 3000);
       }
     },
 
-    // 复制分享链接
     copyShareLink() {
       try {
-        if (!this.generatedShareLink || !this.generatedShareLink.share_code) {
+        if (!this.generatedShareLink?.share_code) {
           this.errorMessage = "无效的分享链接，无法复制！";
           setTimeout(this.clearMessage, 3000);
           return;
         }
 
-        // 构建完整的分享链接
         const link = `${this.baseUrl}/share/${this.generatedShareLink.share_code}`;
-        console.log("Copying link:", link); // 调试信息
-
-        // 尝试复制到剪贴板
-        navigator.clipboard.writeText(link).then(() => {
-          this.copySuccess = true; // 显示复制成功提示
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link).then(() => {
+            this.successMessage = "链接已成功复制到剪贴板！";
+            setTimeout(this.clearMessage, 3000);
+          });
+        } else {
+          this.fallbackCopyTextToClipboard(link);
           this.successMessage = "链接已成功复制到剪贴板！";
-          setTimeout(() => {
-            this.copySuccess = false;
-          }, 3000);
-        }).catch((error) => {
-          console.error('复制失败:', error);
-          this.errorMessage = '复制失败，请手动复制！';
-        });
+          setTimeout(this.clearMessage, 3000);
+        }
       } catch (error) {
         console.error("复制时出错:", error);
-        this.errorMessage = '发生未知错误，请重试！';
+        this.errorMessage = "发生未知错误，请重试！";
         setTimeout(this.clearMessage, 3000);
       }
+    },
+
+    fallbackCopyTextToClipboard(text) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        document.execCommand("copy");
+      } catch (err) {
+        console.error("Fallback: Unable to copy", err);
+      }
+      document.body.removeChild(textarea);
     },
 
     // 关闭模态框
@@ -431,6 +424,7 @@ export default {
         this.showConfirmDelete = false;
       } else if (modalName === 'shareModal') {
         this.showShareModalFlag = false;
+        this.selectedImages = []; // 清空选中图片状态
       }else if (modalName === 'generatedShareLink') {
         this.generatedShareLink = null;
       }

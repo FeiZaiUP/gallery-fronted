@@ -26,7 +26,7 @@ instance.interceptors.request.use(
 
 // 添加响应拦截器
 instance.interceptors.response.use(
-    (response) => response.data, // 返回响应的 data 部分
+    (response) => response, // 返回响应的 data 部分
     (error) => {
         // 错误处理
         console.error('API 请求错误:', error);

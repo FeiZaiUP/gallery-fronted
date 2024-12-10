@@ -22,14 +22,14 @@ export const login = async (data) => {
             }
         });
         // 打印完整响应，确认响应格式
-        // console.log('Login response:', response);
+        console.log('Login response:', response);
 
-        if (response && response.access && response.refresh) {
-            const { access, refresh } = response;
-            // localStorage.setItem('username', response.username);
+        // 正确解析返回的 access 和 refresh token
+        if (response && response.data && response.data.access && response.data.refresh) {
+            const { access, refresh } = response.data;
             localStorage.setItem('access_token', access);
             localStorage.setItem('refresh_token', refresh);
-            return response;
+            return response.data; // 返回响应数据
         } else {
             throw new Error('Invalid response format: access or refresh token missing.');
         }
