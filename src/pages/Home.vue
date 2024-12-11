@@ -19,7 +19,7 @@
     <!-- 欢迎标语 -->
     <section class="welcome-section">
       <h1>Welcome to SuGallery</h1>
-      <p>Your go-to platform for discovering and sharing stunning images</p>
+      <p>Your private cloud photo album, record every beautiful moment of yours.</p>
     </section>
 
     <!-- 大图展示 -->

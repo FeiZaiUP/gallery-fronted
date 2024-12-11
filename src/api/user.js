@@ -2,6 +2,7 @@ import axios from '../axios';
 
 // 用户注册
 export const register = async (data) => {
+
     try {
         const response = await axios.post('/users/register/', data);
         return response.data;

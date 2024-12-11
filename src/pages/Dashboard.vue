@@ -9,6 +9,7 @@
           <button class="dropdown-btn">▼</button>
           <div class="dropdown-content">
             <a href="/user/profile">个人信息</a>
+            <a href="/share-links/manage">我的分享</a>
             <a href="/" @click="logout">登出</a>
           </div>
         </div>
@@ -73,6 +74,22 @@
       </div>
     </div>
 
+<!--    &lt;!&ndash; 分享链接弹窗 &ndash;&gt;-->
+<!--    <div v-if="showShareModalFlag" class="modal" @click.self="closeModal('shareModal')">-->
+<!--      <div class="modal-content">-->
+<!--        <h3>创建分享链接</h3>-->
+<!--        <div>-->
+<!--          <label for="sharePassword">密码 (可选):</label>-->
+<!--          <input type="password" id="sharePassword" v-model="sharePassword" placeholder="请输入密码">-->
+<!--        </div>-->
+<!--        <div>-->
+<!--          <label for="expireTime">到期时间 (可选):</label>-->
+<!--          <input type="datetime-local" id="expireTime" v-model="expireTime">-->
+<!--        </div>-->
+<!--        <button @click="createShareLink" :disabled="creatingShareLink">创建</button>-->
+<!--        <button @click="closeModal('shareModal')">关闭</button>-->
+<!--      </div>-->
+<!--    </div>-->
     <!-- 分享链接弹窗 -->
     <div v-if="showShareModalFlag" class="modal" @click.self="closeModal('shareModal')">
       <div class="modal-content">
@@ -82,13 +99,19 @@
           <input type="password" id="sharePassword" v-model="sharePassword" placeholder="请输入密码">
         </div>
         <div>
-          <label for="expireTime">到期时间 (可选):</label>
-          <input type="datetime-local" id="expireTime" v-model="expireTime">
+          <label for="expireDuration">有效期:</label>
+          <select id="expireDuration" v-model="expireDuration">
+            <option value="3600">1 小时后</option>
+            <option value="86400">1 天后</option>
+            <option value="604800">7 天后</option>
+            <option value="">永不过期</option>
+          </select>
         </div>
-        <button @click="createShareLink" :disabled="creatingShareLink">创建分享链接</button>
+        <button @click="createShareLink" :disabled="creatingShareLink">创建</button>
         <button @click="closeModal('shareModal')">关闭</button>
       </div>
     </div>
+
 
     <!-- 显示生成的分享链接 -->
     <div v-if="generatedShareLink" class="modal share-modal" @click.self="closeModal('generatedShareLink')">
@@ -148,6 +171,7 @@ export default {
       showShareModalFlag: false, // 分享模态框
       sharePassword: '',
       expireTime: null,
+      expireDuration: "", // 新增的有效期选项，默认为空（永不过期）
       creatingShareLink: false,
       generatedShareLink: null, // 保存生成的分享链接
       baseUrl: 'http://192.168.1.175:8188', // 图片分享查看链接接口
@@ -333,14 +357,12 @@ export default {
 
       const payload = { images: this.selectedImages };
       if (this.sharePassword) payload.password = this.sharePassword;
-      if (this.expireTime) {
-        const isoDate = new Date(this.expireTime).toISOString();
-        if (!this.validateISODate(isoDate)) {
-          this.errorMessage = "到期时间格式无效，请检查！";
-          setTimeout(this.clearMessage, 3000);
-          return;
-        }
-        payload.expire_time = isoDate;
+
+      // 根据用户选择的有效期计算到期时间
+      if (this.expireDuration) {
+        const currentTime = new Date();
+        const expireTime = new Date(currentTime.getTime() + parseInt(this.expireDuration) * 1000);
+        payload.expire_time = expireTime.toISOString();
       }
 
       try {
@@ -353,7 +375,6 @@ export default {
 
         this.generatedShareLink = response.data || response;
         const link = `${this.baseUrl}/share/${this.generatedShareLink?.share_code}`;
-        console.log("Generated Share Link:", link);
 
         // 自动复制到剪贴板
         if (navigator.clipboard && navigator.clipboard.writeText) {

@@ -5,6 +5,7 @@ import Register from '../pages/Register.vue';
 import Profile from '../pages/Profile.vue';
 import Dashboard from '../pages/Dashboard.vue';
 import ShareView from '../pages/ShareView.vue';
+import ManageShareLinksView from '../pages/ManageShareLinks.vue';
 
 const routes = [
     { path: '/', component: Home },
@@ -13,6 +14,7 @@ const routes = [
     { path: '/user/profile', component: Profile },
     { path: '/user/dashboard', component: Dashboard },
     { path: "/share/:share_code", component: ShareView },
+    { path: "/share-links/manage", component: ManageShareLinksView },
 ];
 
 const router = createRouter({
