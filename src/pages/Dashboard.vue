@@ -73,23 +73,6 @@
         <button @click="closeModal('confirmDelete')">取消</button>
       </div>
     </div>
-
-<!--    &lt;!&ndash; 分享链接弹窗 &ndash;&gt;-->
-<!--    <div v-if="showShareModalFlag" class="modal" @click.self="closeModal('shareModal')">-->
-<!--      <div class="modal-content">-->
-<!--        <h3>创建分享链接</h3>-->
-<!--        <div>-->
-<!--          <label for="sharePassword">密码 (可选):</label>-->
-<!--          <input type="password" id="sharePassword" v-model="sharePassword" placeholder="请输入密码">-->
-<!--        </div>-->
-<!--        <div>-->
-<!--          <label for="expireTime">到期时间 (可选):</label>-->
-<!--          <input type="datetime-local" id="expireTime" v-model="expireTime">-->
-<!--        </div>-->
-<!--        <button @click="createShareLink" :disabled="creatingShareLink">创建</button>-->
-<!--        <button @click="closeModal('shareModal')">关闭</button>-->
-<!--      </div>-->
-<!--    </div>-->
     <!-- 分享链接弹窗 -->
     <div v-if="showShareModalFlag" class="modal" @click.self="closeModal('shareModal')">
       <div class="modal-content">
@@ -296,7 +279,7 @@ export default {
         await this.fetchImages();
       } catch (error) {
         console.error('Error uploading image:', error);
-        this.errorMessage = '上传失败，请稍后再试。';
+        this.errorMessage = '上传失败，请选择图片文件上传';
         setTimeout(this.clearMessage, 3000);
       } finally {
         this.uploading = false;

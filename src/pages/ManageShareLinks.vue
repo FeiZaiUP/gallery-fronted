@@ -1,6 +1,10 @@
 <template>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="logo"><a class="logo-link" href="/user/dashboard">SUGALLERY</a></div>
+  </nav>
   <div class="manage-share-links">
-    <h1 class="title">管理分享链接</h1>
+    <h1 class="title">我的分享链接</h1>
 
     <!-- 显示加载状态 -->
     <div v-if="loading" class="loading">正在加载分享链接...</div>
@@ -20,6 +24,7 @@
           </th>
           <th>分享链接</th>
           <th>过期时间</th>
+          <th>状态</th>
           <th>操作</th>
         </tr>
         </thead>
@@ -36,6 +41,12 @@
           </td>
           <td>{{ formatExpireTime(link.expire_time) }}</td>
           <td>
+            <span :class="{'status-expired': isExpired(link), 'status-valid': !isExpired(link)}">
+              {{ isExpired(link) ? '已过期' : '有效' }}
+            </span>
+          </td>
+          <td class="action-buttons">
+            <button @click="invalidateShareLink(link.share_code)" class="invalidate-btn">作废</button>
             <button @click="deleteShareLink(link.share_code)" class="delete-btn">删除</button>
           </td>
         </tr>
@@ -45,12 +56,13 @@
       <!-- 分页 -->
       <div class="pagination">
         <button :disabled="page <= 1 || !totalPages" @click="fetchShareLinks(page - 1)" class="page-btn">上一页</button>
-        <span class="page-info">第 {{ page }} 页</span>
+        <span class="page-info">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
         <button :disabled="page >= totalPages || !totalPages" @click="fetchShareLinks(page + 1)" class="page-btn">下一页</button>
       </div>
 
-      <!-- 批量删除按钮 -->
+      <!-- 批量操作按钮 -->
       <div class="batch-actions">
+        <button @click="invalidateSelectedLinks" :disabled="selectedLinks.length === 0" class="batch-invalidate-btn">批量作废</button>
         <button @click="deleteSelectedLinks" :disabled="selectedLinks.length === 0" class="batch-delete-btn">批量删除</button>
       </div>
     </div>
@@ -68,222 +80,237 @@ import axios from "@/axios.js";
 export default {
   data() {
     return {
-      shareLinks: [],  // 当前页面的分享链接
-      page: 1,         // 当前页码
-      totalPages: 1,   // 总页数
-      loading: true,   // 加载状态
-      errorMessage: "", // 错误信息
-      selectedLinks: [], // 选中的分享链接ID
-      selectAll: false, // 是否全选
-      baseUrl: 'http://192.168.1.175:8188', // 网站的基本URL
+      shareLinks: [],
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+      loading: true,
+      errorMessage: "",
+      selectedLinks: [],
+      selectAll: false,
+      baseUrl: "http://192.168.1.175:8188",
     };
   },
   methods: {
-    // 获取分享链接列表
     async fetchShareLinks(page = 1) {
       try {
-        this.loading = true;  // 设置为加载中
-        this.errorMessage = ""; // 清空错误信息
-
-        const accessToken = localStorage.getItem('access_token');
-        if (!accessToken) {
-          throw new Error('用户未认证');
-        }
-
-        // 确保 page 被正确替换
-        const url = `/images/share/manage/?page=${page}`;  // 直接将 page 插入到 URL 中
-        console.log(url);  // 打印 URL，检查是否正确
-
-        const response = await axios.get(url, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`, // 传递 token
-          }
+        this.loading = true;
+        this.errorMessage = "";
+        const accessToken = this.validateToken();
+        const response = await axios.get("/images/share/manage/", {
+          params: { page, page_size: this.pageSize },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
-
-        this.shareLinks = response.data.results;
+        const { results, count } = response.data;
+        this.shareLinks = results || [];
         this.page = page;
-        this.totalPages = Math.ceil(response.data.count / 5);  // 每页5条数据
-        this.loading = false;  // 加载完成
+        this.totalPages = Math.ceil(count / this.pageSize);
       } catch (error) {
-        console.error('获取分享链接失败:', error);
-        this.errorMessage = '无法加载分享链接，请稍后再试。';
-        this.loading = false;  // 加载完成
+        this.errorMessage = error.response?.data?.message || "加载失败，请稍后重试。";
+      } finally {
+        this.loading = false;
       }
     },
-
-    // 删除单个分享链接
     async deleteShareLink(shareCode) {
+      if (!confirm("确认删除该分享链接？")) return;
       try {
-        const accessToken = localStorage.getItem('access_token');
-        if (!accessToken) {
-          throw new Error('用户未认证');
-        }
-
-        await axios.delete(`/images/share/manage/delete/`, {
+        const accessToken = this.validateToken();
+        await axios.delete("/images/share/manage/delete/", {
           data: { share_codes: [shareCode] },
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          }
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
-
-        // 删除成功后刷新当前页
+        alert("删除成功！");
         await this.fetchShareLinks(this.page);
-        alert("分享链接已删除");
       } catch (error) {
-        console.error('删除分享链接失败:', error);
-        alert("删除失败，请稍后再试。");
+        alert("删除失败，请稍后重试。");
       }
     },
-
-    // 批量删除选中的分享链接
-    async deleteSelectedLinks() {
-      if (this.selectedLinks.length === 0) {
-        alert("请至少选择一个分享链接");
-        return;
-      }
-
+    async invalidateShareLink(shareCode) {
+      if (!confirm("确认作废该分享链接？")) return;
       try {
-        const accessToken = localStorage.getItem('access_token');
-        if (!accessToken) {
-          throw new Error('用户未认证');
-        }
-
-        await axios.delete(`/images/share/manage/delete/`, {
-          data: {share_codes: this.selectedLinks},
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          }
+        const accessToken = this.validateToken();
+        await axios.post("/images/share/manage/", {
+          share_codes: [shareCode] }, {
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
-
-        // 删除成功后刷新当前页
+        alert("链接已作废！");
         await this.fetchShareLinks(this.page);
-        this.selectedLinks = []; // 清空选中的链接
-        alert("选中的分享链接已删除");
       } catch (error) {
-        console.error('批量删除分享链接失败:', error);
-        alert("删除失败，请稍后再试。");
+        alert("作废失败，请稍后重试。");
       }
     },
-
-    // 格式化过期时间
-    formatExpireTime(expireTime) {
-      const date = new Date(expireTime);
-      return date.toLocaleString();  // 根据浏览器时区格式化时间
+    async invalidateSelectedLinks() {
+      if (!this.selectedLinks.length || !confirm("确认作废选中的分享链接？")) return;
+      try {
+        const accessToken = this.validateToken();
+        await axios.post("/images/share/manage/", {
+          share_codes: this.selectedLinks }, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        alert("批量作废成功！");
+        this.selectedLinks = [];
+        await this.fetchShareLinks(this.page);
+      } catch (error) {
+        alert("作废失败，请稍后重试。");
+      }
     },
-
-    // 生成分享链接的完整URL
+    validateToken() {
+      const accessToken = localStorage.getItem("access_token");
+      if (!accessToken) throw new Error("用户未登录");
+      return accessToken;
+    },
     generateShareLinkUrl(shareCode) {
       return `${this.baseUrl}/share/${shareCode}`;
     },
-
-    // 全选或取消全选
+    isExpired(link) {
+      const now = new Date();
+      return new Date(link.expire_time) <= now;
+    },
     toggleSelectAll() {
-      if (this.selectAll) {
-        this.selectedLinks = this.shareLinks.map(link => link.share_code);
-      } else {
-        this.selectedLinks = [];
-      }
+      this.selectedLinks = this.selectAll ? this.shareLinks.map((link) => link.share_code) : [];
+    },
+    formatExpireTime(expireTime) {
+      const date = new Date(expireTime);
+      return date.toLocaleString();
     },
   },
   mounted() {
-    this.fetchShareLinks();  // 初始加载分享链接
+    this.fetchShareLinks();
   },
 };
 </script>
 
 <style scoped>
 .manage-share-links {
-  margin: 20px;
-  font-family: Arial, sans-serif;
+  margin: 20px auto;
+  font-family: "Arial", sans-serif;
+  max-width: 1680px;
+  color: #333;
 }
 
 .title {
   text-align: center;
-  font-size: 24px;
-  color: #333;
+  font-size: 28px;
+  color: #4CAF50;
   margin-bottom: 20px;
 }
 
-.loading, .error-message {
+.loading,
+.error-message {
   text-align: center;
-  font-size: 16px;
-}
-
-.share-links-container {
-  margin-top: 20px;
+  font-size: 18px;
+  margin: 10px 0;
 }
 
 .share-links-table {
   width: 100%;
   border-collapse: collapse;
+  margin: 20px 0;
 }
 
 th, td {
-  padding: 12px;
+  padding: 10px;
   border: 1px solid #ddd;
   text-align: center;
 }
 
 th {
-  background-color: #f4f4f4;
+  background-color: #f9f9f9;
   font-weight: bold;
 }
 
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
 button {
-  padding: 6px 12px;
-  margin: 5px;
-  border-radius: 25px;
-  background-color: #4CAF50;
-  color: white;
+  padding: 8px 14px;
+  border-radius: 20px;
   border: none;
   cursor: pointer;
-  transition: background-color 0.3s;
+  font-size: 14px;
+  transition: all 0.3s;
 }
 
 button:hover {
-  background-color: #45a049;
+  opacity: 0.9;
+}
+
+.invalidate-btn {
+  background-color: #FFA500;
+  color: white;
+}
+
+.delete-btn {
+  background-color: #FF4D4F;
+  color: white;
 }
 
 .page-btn {
-  padding: 8px 16px;
-  margin: 0 5px;
-  border-radius: 25px;
-  background-color: #f0f0f0;
-  color: #333;
-  border: none;
-  cursor: pointer;
+  background-color: #007BFF;
+  color: white;
 }
 
-.page-btn:hover {
-  background-color: #ddd;
+.page-btn:disabled {
+  background-color: #d6d6d6;
+  cursor: not-allowed;
 }
 
-.page-info {
-  font-size: 16px;
-  margin: 0 10px;
-}
-
-.batch-actions {
-  margin-top: 20px;
-  text-align: center;
+.batch-invalidate-btn {
+  background-color: #FF5722;
+  color: white;
 }
 
 .batch-delete-btn {
-  padding: 8px 16px;
-  background-color: #f44336;
+  background-color: #D32F2F;
   color: white;
-  border-radius: 25px;
-  border: none;
-  cursor: pointer;
 }
 
-.batch-delete-btn:hover {
-  background-color: #e53935;
+.status-expired {
+  color: #FF4D4F;
+  font-weight: bold;
+}
+
+.status-valid {
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.page-info {
+  margin: 0 15px;
+  font-size: 16px;
+  color: #666;
 }
 
 .no-share-links {
   text-align: center;
   font-size: 18px;
   color: #666;
+  margin-top: 20px;
+}
+
+.logo {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.logo-link {
+  text-decoration: none;
+  color: #4CAF50;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.logo-link:hover {
+  text-decoration: underline;
 }
 </style>
