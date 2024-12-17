@@ -28,7 +28,27 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  font-family: Arial, sans-serif;
+  padding: 0;
+  background-color: #f4f4f4;
 }
+
+.dashboard {
+  /*display: flex;*/
+  /*flex-direction: column;*/
+  /*height: 100vh;*/
+}
+
+/* 保持导航栏样式一致 */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #b2732b;
+  padding: 10px;
+  color: rgba(11, 11, 54, 0.65);
+}
+
 
 h1 {
   font-size: 3.2em;

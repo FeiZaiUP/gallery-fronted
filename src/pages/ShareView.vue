@@ -1,9 +1,13 @@
 <template>
+  <div>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <div class="logo">SUGALLERY</div>
+    </nav>
+
   <div class="share-view">
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else>
-      <h1>图片分享</h1>
-
       <div v-if="error" class="error">{{ error }}</div>
 
       <!-- 如果需要密码保护，显示密码输入框 -->
@@ -20,11 +24,8 @@
         </div>
       </div>
 
-      <!-- 到期时间显示 -->
-      <div v-if="expireTime">
-        <p>分享链接将于: {{ expireTime }}失效</p>
-      </div>
     </div>
+  </div>
   </div>
 </template>
 
@@ -166,7 +167,7 @@ export default {
 
 .images img {
   width: 100%;
-  max-width: 1280px;
+  max-width: 1440px;
   margin: 10px 0;
 }
 
