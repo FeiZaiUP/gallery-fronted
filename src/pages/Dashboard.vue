@@ -64,6 +64,13 @@
         </div>
       </div>
     </div>
+    <!-- 分页 -->
+    <div class="pagination">
+      <button :disabled="page <= 1 || !totalPages" @click="changePage(page - 1)" class="page-btn">上一页</button>
+      <span class="page-info">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
+      <button :disabled="page >= totalPages || !totalPages" @click="changePage(page + 1)" class="page-btn">下一页</button>
+    </div>
+
 
     <!-- 批量删除确认弹窗 -->
     <div v-if="showConfirmDelete" class="confirmation-modal" @click.self="closeModal('confirmDelete')">
@@ -140,6 +147,9 @@ export default {
       username: '加载中...',
       images: [],
       loading: true,
+      page: 1,
+      pageSize: 12,
+      totalPages: 1,
       successMessage: '',
       errorMessage: '',
       imageFile: null,
@@ -164,7 +174,6 @@ export default {
   mounted() {
     this.fetchUserProfile();
     this.fetchImages();
-    this.fetchTags();
   },
   methods: {
 
@@ -192,46 +201,56 @@ export default {
     // 获取图片列表
     async fetchImages() {
       try {
+        this.loading = true;
         const accessToken = localStorage.getItem('access_token');
         if (!accessToken) {
-          throw new Error('User not authenticated');
+          throw new Error('用户未认证');
         }
 
         const response = await axios.get('/images/', {
+          params: { page: this.page, page_size: this.pageSize }, // 修正为 this.page
           headers: {
             'Authorization': `Bearer ${accessToken}`,
           }
         });
 
-        this.images = response.data;
-        this.loading = false;
+        this.images = response.data.results; // 当前页数据
+        this.totalImages = response.data.count; // 总数
+        this.totalPages = Math.ceil(this.totalImages / this.pageSize); // 计算总页数
       } catch (error) {
         console.error('Error fetching images:', error);
         this.errorMessage = '无法加载图片，请稍后再试。';
+      } finally {
         this.loading = false;
       }
     },
 
-    // 获取标签列表
-    async fetchTags() {
-      try {
-        const accessToken = localStorage.getItem('access_token');
-        if (!accessToken) {
-          throw new Error('Access token is missing');
-        }
-
-        const response = await axios.get('/tags/', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          }
-        });
-
-        this.availableTags = response.data;
-      } catch (error) {
-        console.error('Error fetching tags:', error);
-        this.errorMessage = '无法加载标签，请稍后再试。';
-      }
+    async changePage(newPage) {
+      if (newPage < 1 || newPage > this.totalPages) return;
+      this.page = newPage;
+      await this.fetchImages(); // 更新当前页数据
     },
+
+    // // 获取标签列表
+    // async fetchTags() {
+    //   try {
+    //     const accessToken = localStorage.getItem('access_token');
+    //     if (!accessToken) {
+    //       throw new Error('Access token is missing');
+    //     }
+    //
+    //     const response = await axios.get('/tags/', {
+    //       headers: {
+    //         'Authorization': `Bearer ${accessToken}`,
+    //       }
+    //     });
+    //
+    //     this.availableTags = response.data;
+    //   } catch (error) {
+    //     console.error('Error fetching tags:', error);
+    //     this.errorMessage = '无法加载标签，请稍后再试。';
+    //   }
+    // },
 
     handleFileChange(event) {
       this.imageFile = event.target.files[0];
