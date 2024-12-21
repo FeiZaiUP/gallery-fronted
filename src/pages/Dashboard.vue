@@ -33,19 +33,19 @@
     <!-- 操作台 -->
     <div class="action-bar">
       <div class="search-box-wrapper">
-        <input
-            type="text"
-            v-model="searchKeyword"
-            placeholder="请输入图片标题搜索"
-            class="search-box"
-            @input="searchImages"
-        />
+        <input type="text" v-model="searchKeyword" placeholder="请输入图片标题搜索" class="search-box"/>
+        <button @click="searchImages" class="search-btn">查询</button>
       </div>
       <div class="upload-wrapper">
-        <input ref="fileInput" type="file" @change="handleFileChange" accept="image/*" class="file-input" />
-        <input type="text" v-model="imageTitle" placeholder="请输入图片标题" class="title-input" />
-        <button @click="uploadImage" :disabled="!imageFile" class="upload-btn">上传</button>
-        <button v-if="selectedImages.length > 0" @click="showShareModal" class="create-share-btn">创建分享</button>
+        <input ref="fileInput" type="file" multiple @change="handleFileChange" accept="image/*" class="file-input"/>
+        <input type="text" v-model="imageTitle" placeholder="请输入图片标题" class="title-input"/>
+        <div v-if="selectedTags.length > 0">
+          <span v-for="tag in selectedTags" :key="tag" class="tag">{{ tag }}</span>
+        </div>
+        <button
+            @click="uploadImages" :disabled="uploading || imageFiles.length === 0" class="upload-btn">
+          {{ uploading ? `上传中 ${uploadProgress}%` : '上传' }}
+        </button>
       </div>
       <!-- 批量删除按钮 -->
       <div v-if="selectedImages.length > 0" class="batch-delete">
@@ -145,14 +145,15 @@ export default {
   data() {
     return {
       username: '加载中...',
+      searchKeyword: '',  // 搜索关键字
       images: [],
-      loading: true,
+      loading: false,
       page: 1,
       pageSize: 12,
       totalPages: 1,
       successMessage: '',
       errorMessage: '',
-      imageFile: null,
+      imageFiles: [], // 保存多个图片文件
       imageTitle: '',
       uploading: false,
       uploadProgress: 0,
@@ -174,6 +175,7 @@ export default {
   mounted() {
     this.fetchUserProfile();
     this.fetchImages();
+    this.fetchTags();
   },
   methods: {
 
@@ -198,17 +200,28 @@ export default {
       }
     },
 
+
+    // 查询按钮点击后执行搜索
+    async searchImages() {
+      this.page = 1;  // 重置为第一页
+      await this.fetchImages();
+    },
+
     // 获取图片列表
     async fetchImages() {
+      this.loading = true;
       try {
-        this.loading = true;
         const accessToken = localStorage.getItem('access_token');
         if (!accessToken) {
           throw new Error('用户未认证');
         }
 
         const response = await axios.get('/images/', {
-          params: { page: this.page, page_size: this.pageSize }, // 修正为 this.page
+          params: {
+            page: this.page,
+            page_size: this.pageSize,
+            keyword: this.searchKeyword,
+          },
           headers: {
             'Authorization': `Bearer ${accessToken}`,
           }
@@ -219,7 +232,11 @@ export default {
         this.totalPages = Math.ceil(this.totalImages / this.pageSize); // 计算总页数
       } catch (error) {
         console.error('Error fetching images:', error);
-        this.errorMessage = '无法加载图片，请稍后再试。';
+        if (error.response && error.response.data && error.response.data.error) {
+          this.errorMessage = error.response.data.error;
+        } else {
+          this.errorMessage = '服务器内部错误，请稍后重试';
+        }
       } finally {
         this.loading = false;
       }
@@ -231,50 +248,54 @@ export default {
       await this.fetchImages(); // 更新当前页数据
     },
 
-    // // 获取标签列表
-    // async fetchTags() {
-    //   try {
-    //     const accessToken = localStorage.getItem('access_token');
-    //     if (!accessToken) {
-    //       throw new Error('Access token is missing');
-    //     }
-    //
-    //     const response = await axios.get('/tags/', {
-    //       headers: {
-    //         'Authorization': `Bearer ${accessToken}`,
-    //       }
-    //     });
-    //
-    //     this.availableTags = response.data;
-    //   } catch (error) {
-    //     console.error('Error fetching tags:', error);
-    //     this.errorMessage = '无法加载标签，请稍后再试。';
-    //   }
-    // },
+    // 获取标签列表
+    async fetchTags() {
+      try {
+        const accessToken = localStorage.getItem('access_token');
+        if (!accessToken) {
+          throw new Error('Access token is missing');
+        }
 
+        const response = await axios.get('/tags/', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
+        });
+
+        this.availableTags = response.data;
+      } catch (error) {
+        console.error('Error fetching tags:', error);
+        this.errorMessage = '无法加载标签，请稍后再试。';
+      }
+    },
+
+    // 监听文件选择事件
     handleFileChange(event) {
-      this.imageFile = event.target.files[0];
+      this.imageFiles = Array.from(event.target.files);  // 选择多张图片
     },
 
-    clearMessage() {
-      this.successMessage = '';
-      this.errorMessage = '';
-    },
-
-    async uploadImage() {
-      if (!this.imageFile || !this.imageTitle) return;
+    // 执行上传
+    async uploadImages() {
+      if (this.imageFiles.length === 0 || !this.imageTitle) {
+        this.errorMessage = '请选择至少一张图片并输入标题';
+        setTimeout(this.clearMessage, 3000);
+        return;
+      }
 
       this.uploading = true;
       this.uploadProgress = 0;
-
       const formData = new FormData();
-      formData.append('file', this.imageFile);
+
+      this.imageFiles.forEach((file) => {
+        formData.append('file', file);  // 多文件批量上传
+      });
+
       formData.append('title', this.imageTitle);
       // formData.append('tags', JSON.stringify(this.selectedTags));
 
       const accessToken = localStorage.getItem('access_token');
       try {
-        await axios.post('/images/upload/', formData, {
+        const response = await axios.post('/images/upload/', formData, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'multipart/form-data',
@@ -283,26 +304,33 @@ export default {
             if (progressEvent.total) {
               this.uploadProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
             }
-          }
+          },
         });
 
-        // 显示上传成功提示
-        this.successMessage = '图片上传成功！';
+        this.successMessage = '图片上传成功';
         setTimeout(this.clearMessage, 3000);
-        // 清空上传控件和输入框
-        this.$refs.fileInput.value = '';
-        this.imageFile = null;
-        this.imageTitle = '';
-
-        // 刷新图片列表
+        this.clearForm();
+        // **上传成功后刷新图片列表**
         await this.fetchImages();
       } catch (error) {
-        console.error('Error uploading image:', error);
-        this.errorMessage = '上传失败，请选择图片文件上传';
+        this.errorMessage = '图片上传失败，请选择需要上传的图片';
         setTimeout(this.clearMessage, 3000);
       } finally {
         this.uploading = false;
       }
+    },
+
+    // 清空表单
+    clearForm() {
+      this.$refs.fileInput.value = '';
+      this.imageFiles = [];
+      this.imageTitle = '';
+      this.selectedTags = [];
+    },
+
+    clearMessage() {
+      this.successMessage = '';
+      this.errorMessage = '';
     },
 
     viewImage(image) {

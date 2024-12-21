@@ -198,6 +198,32 @@
     background-color: #f1f1f1;
 }
 
+.search-box-wrapper {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.search-box {
+    width: 300px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.search-btn {
+    padding: 8px 20px;
+    background-color: #059fdb;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.search-btn:hover {
+    background-color: #36976c;
+}
+
 
 .upload-wrapper {
     flex: 1;
@@ -225,7 +251,7 @@
 
 .upload-btn:disabled,
 .create-share-btn:disabled {
-    background-color: #ccc;
+    background-color: rgba(4, 1, 17, 0.13);
 }
 
 .share-btn {
